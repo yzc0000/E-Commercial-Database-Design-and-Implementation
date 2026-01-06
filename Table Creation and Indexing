@@ -1,0 +1,491 @@
+
+        USE yazicia; 
+        SET FOREIGN_KEY_CHECKS = 0;
+        -- DROP ALL TABLES (in reverse dependency order for clarity)
+        DROP TABLE IF EXISTS Order_Status_History;
+        DROP TABLE IF EXISTS Invoice;
+        DROP TABLE IF EXISTS Review;
+        DROP TABLE IF EXISTS Return_Item;
+        DROP TABLE IF EXISTS Order_Return;
+        DROP TABLE IF EXISTS Refund;
+        DROP TABLE IF EXISTS Stock_Movement;
+        DROP TABLE IF EXISTS Stock_Reservation;
+        DROP TABLE IF EXISTS Basket_Item;
+        DROP TABLE IF EXISTS Shipment_Item;
+        DROP TABLE IF EXISTS Shipment;
+        DROP TABLE IF EXISTS Payment_Allocation;
+        DROP TABLE IF EXISTS Payment;
+        DROP TABLE IF EXISTS Order_Item;
+        DROP TABLE IF EXISTS Seller_Order;
+        DROP TABLE IF EXISTS Order_Discount;
+        DROP TABLE IF EXISTS Customer_Order;
+        DROP TABLE IF EXISTS Listing;
+        DROP TABLE IF EXISTS Basket;
+        DROP TABLE IF EXISTS Address;
+        DROP TABLE IF EXISTS Product_Media;
+        DROP TABLE IF EXISTS Product_Category;
+        DROP TABLE IF EXISTS Product_Variant;
+        DROP TABLE IF EXISTS Product;
+        DROP TABLE IF EXISTS Seller;
+        DROP TABLE IF EXISTS Customer;
+        DROP TABLE IF EXISTS Category;
+
+        SET FOREIGN_KEY_CHECKS = 1;
+        -- PHASE 1: INDEPENDENT TABLES (No FK dependencies)
+        -- 1. Category
+        CREATE TABLE Category (
+            category_id INT AUTO_INCREMENT PRIMARY KEY,
+            category_name VARCHAR(100) NOT NULL
+        ) ENGINE=InnoDB;
+
+        -- 2. Customer
+        CREATE TABLE Customer (
+            customer_id INT AUTO_INCREMENT PRIMARY KEY,
+            customer_mail VARCHAR(255) NOT NULL UNIQUE,
+            customer_firstname VARCHAR(100) NOT NULL,
+            customer_lastname VARCHAR(100) NOT NULL,
+            gender VARCHAR(20),
+            birth_date DATE,
+            created_at DATETIME NOT NULL
+        ) ENGINE=InnoDB;
+
+        -- 3. Seller
+        CREATE TABLE Seller (
+            seller_id INT AUTO_INCREMENT PRIMARY KEY,
+            seller_mail VARCHAR(255) NOT NULL UNIQUE,
+            seller_name VARCHAR(200) NOT NULL,
+            phone VARCHAR(30),
+            status VARCHAR(50) NOT NULL,
+            created_at DATETIME NOT NULL
+        ) ENGINE=InnoDB;
+
+        -- 4. Product
+        CREATE TABLE Product (
+            product_id INT AUTO_INCREMENT PRIMARY KEY,
+            product_name VARCHAR(200) NOT NULL,
+            description TEXT,
+            brand_name VARCHAR(100),
+            created_at DATETIME NOT NULL
+        ) ENGINE=InnoDB;
+
+        -- PHASE 2: FIRST-LEVEL DEPENDENCIES
+        -- 5. Product_Variant (depends on Product)
+
+        CREATE TABLE Product_Variant (
+            product_variant_id INT AUTO_INCREMENT PRIMARY KEY,
+            product_id INT NOT NULL,
+            barcode VARCHAR(50),
+            stock_code VARCHAR(50),
+            -- Variant attributes as static columns     
+            color VARCHAR(50),
+            size VARCHAR(20),
+            gender VARCHAR(20),
+            CONSTRAINT fk_variant_product FOREIGN KEY (product_id) 
+                REFERENCES Product(product_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+
+        -- 6. Product_Category (depends on Product, Category) - M:N relationship
+        CREATE TABLE Product_Category (
+            product_category_id INT AUTO_INCREMENT PRIMARY KEY,
+            product_id INT NOT NULL,
+            category_id INT NOT NULL,
+            CONSTRAINT fk_prodcat_product FOREIGN KEY (product_id) 
+                REFERENCES Product(product_id) ON DELETE CASCADE,
+            CONSTRAINT fk_prodcat_category FOREIGN KEY (category_id) 
+                REFERENCES Category(category_id) ON DELETE CASCADE,
+            UNIQUE KEY uk_product_category (product_id, category_id)
+        ) ENGINE=InnoDB;
+
+        -- 7. Product_Media (depends on Product_Variant)
+        CREATE TABLE Product_Media (
+            media_id INT AUTO_INCREMENT PRIMARY KEY,
+            product_variant_id INT NOT NULL,
+            media_url VARCHAR(500) NOT NULL,
+            media_type VARCHAR(50) NOT NULL,
+            sort_order INT DEFAULT 0,
+            CONSTRAINT fk_media_variant FOREIGN KEY (product_variant_id) 
+                REFERENCES Product_Variant(product_variant_id) ON DELETE CASCADE,
+            CONSTRAINT chk_sort_order CHECK (sort_order >= 0)
+        ) ENGINE=InnoDB;
+
+        -- 8. Address (depends on Customer)
+        CREATE TABLE Address (
+            address_id INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id INT NOT NULL,
+            address_type VARCHAR(50),
+            address_line1 VARCHAR(255) NOT NULL,
+            address_line2 VARCHAR(255),
+            country VARCHAR(100) NOT NULL,
+            city VARCHAR(100) NOT NULL,
+            zip_code VARCHAR(20),
+            CONSTRAINT fk_address_customer FOREIGN KEY (customer_id) 
+                REFERENCES Customer(customer_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+
+        -- 9. Basket (depends on Customer)
+        CREATE TABLE Basket (
+            basket_id INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id INT NOT NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            created_at DATETIME NOT NULL,
+            archived_at DATETIME,
+            last_updated_at DATETIME,
+            CONSTRAINT fk_basket_customer FOREIGN KEY (customer_id) 
+                REFERENCES Customer(customer_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+
+        -- 10. Listing (depends on Product_Variant, Seller)
+        CREATE TABLE Listing (
+            listing_id INT AUTO_INCREMENT PRIMARY KEY,
+            product_variant_id INT NOT NULL,
+            seller_id INT NOT NULL,
+            price DECIMAL(19,4) NOT NULL,
+            currency VARCHAR(10) NOT NULL DEFAULT 'TRY',
+            vat_rate DECIMAL(5,2),
+            is_active TINYINT(1) DEFAULT 1,
+            stock_on_hand INT NOT NULL DEFAULT 0,
+            reserved INT NOT NULL DEFAULT 0,
+            rebound INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_listing_variant FOREIGN KEY (product_variant_id) 
+                REFERENCES Product_Variant(product_variant_id) ON DELETE CASCADE,
+            CONSTRAINT fk_listing_seller FOREIGN KEY (seller_id) 
+                REFERENCES Seller(seller_id) ON DELETE CASCADE,
+            -- CHECK constraints: price >= 0, stock >= 0
+            CONSTRAINT chk_listing_price CHECK (price >= 0),
+            CONSTRAINT chk_listing_vat CHECK (vat_rate IS NULL OR vat_rate >= 0),
+            CONSTRAINT chk_listing_stock CHECK (stock_on_hand >= 0),
+            CONSTRAINT chk_listing_reserved CHECK (reserved >= 0)
+        ) ENGINE=InnoDB;
+
+        -- PHASE 3: ORDER FLOW
+        -- 11. Customer_Order (depends on Customer)
+        CREATE TABLE Customer_Order (
+            cust_order_id INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id INT NOT NULL,
+            ord_number VARCHAR(50) NOT NULL UNIQUE,
+            ord_date DATETIME NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            shipping_address_line VARCHAR(255),
+            shipping_country VARCHAR(100),
+            shipping_city VARCHAR(100),
+            billing_address_line VARCHAR(255),
+            billing_country VARCHAR(100),
+            billing_city VARCHAR(100),
+            CONSTRAINT fk_custorder_customer FOREIGN KEY (customer_id) 
+                REFERENCES Customer(customer_id) ON DELETE RESTRICT
+        ) ENGINE=InnoDB;
+
+        -- 12. Order_Discount (depends on Customer_Order)
+        CREATE TABLE Order_Discount (
+            order_discount_id INT AUTO_INCREMENT PRIMARY KEY,
+            cust_order_id INT NOT NULL,
+            promo_code VARCHAR(50),
+            discount_type VARCHAR(50) NOT NULL,
+            discount_value DECIMAL(19,4) NOT NULL,
+            applied_amount DECIMAL(19,4) NOT NULL,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_discount_custorder FOREIGN KEY (cust_order_id) 
+                REFERENCES Customer_Order(cust_order_id) ON DELETE CASCADE,
+            CONSTRAINT chk_discount_value CHECK (discount_value >= 0),
+            CONSTRAINT chk_discount_applied CHECK (applied_amount >= 0)
+        ) ENGINE=InnoDB;
+
+        -- 13. Seller_Order (depends on Seller, Customer_Order)
+        -- UNIQUE constraint: one seller order per seller per customer order
+        CREATE TABLE Seller_Order (
+            seller_order_id INT AUTO_INCREMENT PRIMARY KEY,
+            seller_id INT NOT NULL,
+            cust_order_id INT NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            item_subtotal DECIMAL(19,4) NOT NULL,
+            shipping_total DECIMAL(19,4) DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            due_date_of_shipment DATE,
+            CONSTRAINT fk_sellerorder_seller FOREIGN KEY (seller_id) 
+                REFERENCES Seller(seller_id) ON DELETE RESTRICT,
+            CONSTRAINT fk_sellerorder_custorder FOREIGN KEY (cust_order_id) 
+                REFERENCES Customer_Order(cust_order_id) ON DELETE CASCADE,
+            CONSTRAINT chk_sellerorder_subtotal CHECK (item_subtotal >= 0),
+            CONSTRAINT chk_sellerorder_shipping CHECK (shipping_total >= 0),
+            -- One seller order per seller per customer order
+            UNIQUE KEY uk_sellerorder_cust_seller (cust_order_id, seller_id)
+        ) ENGINE=InnoDB;
+
+        -- 14. Order_Item (depends on Seller_Order, Listing)
+        CREATE TABLE Order_Item (
+            order_item_id INT AUTO_INCREMENT PRIMARY KEY,
+            listing_id INT NOT NULL,
+            seller_order_id INT NOT NULL,
+            list_price_at_sale DECIMAL(19,4) NOT NULL,
+            unit_price_at_sale DECIMAL(19,4) NOT NULL,
+            quantity INT NOT NULL DEFAULT 1,
+            discount_amount DECIMAL(19,4) DEFAULT 0,
+            commission_rate DECIMAL(5,2),
+            tax_rate DECIMAL(5,2),
+            CONSTRAINT fk_orderitem_listing FOREIGN KEY (listing_id) 
+                REFERENCES Listing(listing_id) ON DELETE RESTRICT,
+            CONSTRAINT fk_orderitem_sellerorder FOREIGN KEY (seller_order_id) 
+                REFERENCES Seller_Order(seller_order_id) ON DELETE CASCADE,
+            -- CHECK constraints: quantity > 0, prices >= 0
+            CONSTRAINT chk_orderitem_qty CHECK (quantity > 0),
+            CONSTRAINT chk_orderitem_listprice CHECK (list_price_at_sale >= 0),
+            CONSTRAINT chk_orderitem_unitprice CHECK (unit_price_at_sale >= 0),
+            CONSTRAINT chk_orderitem_discount CHECK (discount_amount >= 0),
+            -- Discount cannot exceed the list price (prevents negative net price)
+            CONSTRAINT chk_orderitem_discount_max CHECK (discount_amount <= list_price_at_sale)
+        ) ENGINE=InnoDB;
+
+        -- 15. Payment (depends on Customer_Order)
+        CREATE TABLE Payment (
+            payment_id INT AUTO_INCREMENT PRIMARY KEY,
+            cust_order_id INT NOT NULL,
+            amount DECIMAL(19,4) NOT NULL,
+            currency VARCHAR(10) NOT NULL DEFAULT 'TRY',
+            method VARCHAR(50) NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            captured_at DATETIME,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_payment_custorder FOREIGN KEY (cust_order_id) 
+                REFERENCES Customer_Order(cust_order_id) ON DELETE RESTRICT,
+            CONSTRAINT chk_payment_amount CHECK (amount >= 0)
+        ) ENGINE=InnoDB;
+
+        -- 16. Payment_Allocation (depends on Payment, Seller_Order)
+        CREATE TABLE Payment_Allocation (
+            payment_allocation_id INT AUTO_INCREMENT PRIMARY KEY,
+            payment_id INT NOT NULL,
+            seller_order_id INT NOT NULL,
+            amount DECIMAL(19,4) NOT NULL,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_allocation_payment FOREIGN KEY (payment_id) 
+                REFERENCES Payment(payment_id) ON DELETE CASCADE,
+            CONSTRAINT fk_allocation_sellerorder FOREIGN KEY (seller_order_id) 
+                REFERENCES Seller_Order(seller_order_id) ON DELETE CASCADE,
+            CONSTRAINT chk_allocation_amount CHECK (amount >= 0)
+        ) ENGINE=InnoDB;
+
+        -- PHASE 4: FULFILLMENT
+        -- 17. Shipment (depends on Seller_Order)
+        CREATE TABLE Shipment (
+            shipment_id INT AUTO_INCREMENT PRIMARY KEY,
+            seller_order_id INT NOT NULL,
+            carrier VARCHAR(100),
+            tracking_number VARCHAR(100),
+            shipped_at DATETIME,
+            delivered_at DATETIME,
+            status VARCHAR(50) NOT NULL,
+            delivery_no VARCHAR(50),
+            shipping_address_line VARCHAR(255),
+            shipping_city VARCHAR(100),
+            shipping_country VARCHAR(100),
+            shipping_postal_code VARCHAR(20),
+            CONSTRAINT fk_shipment_sellerorder FOREIGN KEY (seller_order_id) 
+                REFERENCES Seller_Order(seller_order_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+
+        -- 18. Shipment_Item (depends on Shipment, Order_Item)
+        CREATE TABLE Shipment_Item (
+            shipment_item_id INT AUTO_INCREMENT PRIMARY KEY,
+            shipment_id INT NOT NULL,
+            order_item_id INT NOT NULL,
+            shipped_quantity INT NOT NULL,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_shipmentitem_shipment FOREIGN KEY (shipment_id) 
+                REFERENCES Shipment(shipment_id) ON DELETE CASCADE,
+            CONSTRAINT fk_shipmentitem_orderitem FOREIGN KEY (order_item_id) 
+                REFERENCES Order_Item(order_item_id) ON DELETE CASCADE,
+            CONSTRAINT chk_shipmentitem_qty CHECK (shipped_quantity > 0)
+        ) ENGINE=InnoDB;
+
+        -- 19. Basket_Item (depends on Basket, Listing)
+        CREATE TABLE Basket_Item (
+            basket_item_id INT AUTO_INCREMENT PRIMARY KEY,
+            basket_id INT NOT NULL,
+            listing_id INT NOT NULL,
+            quantity INT NOT NULL DEFAULT 1,
+            unit_price_at_sale DECIMAL(19,4) NOT NULL,
+            vat_rate_at_sale DECIMAL(5,2),
+            discount_rate_at_sale DECIMAL(5,2) DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_basketitem_basket FOREIGN KEY (basket_id) 
+                REFERENCES Basket(basket_id) ON DELETE CASCADE,
+            CONSTRAINT fk_basketitem_listing FOREIGN KEY (listing_id) 
+                REFERENCES Listing(listing_id) ON DELETE CASCADE,
+            CONSTRAINT chk_basketitem_qty CHECK (quantity > 0),
+            CONSTRAINT chk_basketitem_price CHECK (unit_price_at_sale >= 0)
+        ) ENGINE=InnoDB;
+
+        -- 20. Stock_Reservation (depends on Listing, Order_Item)
+        -- Tracks stock reserved for confirmed orders until shipment
+        CREATE TABLE Stock_Reservation (
+            stock_reservation_id INT AUTO_INCREMENT PRIMARY KEY,
+            listing_id INT NOT NULL,
+            order_item_id INT NOT NULL,
+            quantity INT NOT NULL,
+            expires_at DATETIME,
+            created_at DATETIME NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            CONSTRAINT fk_reservation_listing FOREIGN KEY (listing_id) 
+                REFERENCES Listing(listing_id) ON DELETE CASCADE,
+            CONSTRAINT fk_reservation_orderitem FOREIGN KEY (order_item_id) 
+                REFERENCES Order_Item(order_item_id) ON DELETE CASCADE,
+            CONSTRAINT chk_reservation_qty CHECK (quantity > 0)
+        ) ENGINE=InnoDB;
+
+        -- 21. Stock_Movement (depends on Listing) - Return_Item FK added later
+        CREATE TABLE Stock_Movement (
+            stock_movement_id INT AUTO_INCREMENT PRIMARY KEY,
+            listing_id INT NOT NULL,
+            order_item_id INT NULL,
+            return_item_id INT NULL,
+            movement_type VARCHAR(50) NOT NULL,
+            quantity INT NOT NULL,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_stockmove_listing FOREIGN KEY (listing_id) 
+                REFERENCES Listing(listing_id) ON DELETE CASCADE,
+            CONSTRAINT fk_stockmove_orderitem FOREIGN KEY (order_item_id) 
+                REFERENCES Order_Item(order_item_id) ON DELETE SET NULL,
+            CONSTRAINT chk_stockmove_qty CHECK (quantity > 0)
+        ) ENGINE=InnoDB;
+
+        -- PHASE 5: RETURNS & REFUNDS
+        -- 22. Refund (depends on Payment)
+        CREATE TABLE Refund (
+            refund_id INT AUTO_INCREMENT PRIMARY KEY,
+            payment_id INT NOT NULL,
+            amount DECIMAL(19,4) NOT NULL,
+            reason VARCHAR(255),
+            status VARCHAR(50) NOT NULL,
+            refunded_at DATETIME,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_refund_payment FOREIGN KEY (payment_id) 
+                REFERENCES Payment(payment_id) ON DELETE RESTRICT,
+            CONSTRAINT chk_refund_amount CHECK (amount >= 0)
+        ) ENGINE=InnoDB;
+
+        -- 23. Order_Return (depends on Seller_Order, Refund)
+        CREATE TABLE Order_Return (
+            return_id INT AUTO_INCREMENT PRIMARY KEY,
+            seller_order_id INT NOT NULL,
+            refund_id INT NULL,
+            status VARCHAR(50) NOT NULL,
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_return_sellerorder FOREIGN KEY (seller_order_id) 
+                REFERENCES Seller_Order(seller_order_id) ON DELETE CASCADE,
+            CONSTRAINT fk_return_refund FOREIGN KEY (refund_id) 
+                REFERENCES Refund(refund_id) ON DELETE SET NULL
+        ) ENGINE=InnoDB;
+
+        -- 24. Return_Item (depends on Order_Return, Order_Item)
+        CREATE TABLE Return_Item (
+            return_item_id INT AUTO_INCREMENT PRIMARY KEY,
+            return_id INT NOT NULL,
+            order_item_id INT NOT NULL,
+            quantity INT NOT NULL,
+            reason VARCHAR(255),
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_returnitem_return FOREIGN KEY (return_id) 
+                REFERENCES Order_Return(return_id) ON DELETE CASCADE,
+            CONSTRAINT fk_returnitem_orderitem FOREIGN KEY (order_item_id) 
+                REFERENCES Order_Item(order_item_id) ON DELETE CASCADE,
+            CONSTRAINT chk_returnitem_qty CHECK (quantity > 0)
+        ) ENGINE=InnoDB;
+
+        ALTER TABLE Stock_Movement
+        ADD CONSTRAINT fk_stockmove_returnitem FOREIGN KEY (return_item_id) 
+            REFERENCES Return_Item(return_item_id) ON DELETE SET NULL;
+
+        -- PHASE 6: SUPPORT TABLES
+        -- 25. Review (depends on Product_Variant, Customer)
+        -- UNIQUE constraint: one review per customer per product variant
+        CREATE TABLE Review (
+            review_id INT AUTO_INCREMENT PRIMARY KEY,
+            product_variant_id INT NOT NULL,
+            customer_id INT NOT NULL,
+            rating INT NOT NULL,
+            review_text TEXT,
+            reviewed_at DATETIME NOT NULL,
+            CONSTRAINT fk_review_variant FOREIGN KEY (product_variant_id) 
+                REFERENCES Product_Variant(product_variant_id) ON DELETE CASCADE,
+            CONSTRAINT fk_review_customer FOREIGN KEY (customer_id) 
+                REFERENCES Customer(customer_id) ON DELETE CASCADE,
+            CONSTRAINT chk_rating CHECK (rating >= 1 AND rating <= 5),
+            -- One review per customer per product variant
+            UNIQUE KEY uk_customer_variant_review (customer_id, product_variant_id)
+        ) ENGINE=InnoDB;
+
+        -- 26. Invoice (depends on Seller_Order)
+        CREATE TABLE Invoice (
+            invoice_id INT AUTO_INCREMENT PRIMARY KEY,
+            seller_order_id INT NOT NULL,
+            invoice_number VARCHAR(50) NOT NULL UNIQUE,
+            invoice_date DATE NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            address_line VARCHAR(255),
+            billing_country VARCHAR(100),
+            billing_city VARCHAR(100),
+            billing_postalcode VARCHAR(20),
+            created_at DATETIME NOT NULL,
+            CONSTRAINT fk_invoice_sellerorder FOREIGN KEY (seller_order_id) 
+                REFERENCES Seller_Order(seller_order_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+
+        -- 27. Order_Status_History (depends on Customer_Order, Seller_Order, Shipment)
+        -- NOTE: XOR constraint (exactly one of cust_order_id, seller_order_id, or shipment_id must be non-null)
+        --       is enforced via trigger due to MySQL limitation with CHECK + ON DELETE CASCADE
+        CREATE TABLE Order_Status_History (
+            status_history_id INT AUTO_INCREMENT PRIMARY KEY,
+            cust_order_id INT NULL,
+            seller_order_id INT NULL,
+            shipment_id INT NULL,
+            old_status VARCHAR(50),
+            new_status VARCHAR(50) NOT NULL,
+            changed_at DATETIME NOT NULL,
+            changed_by INT,
+            CONSTRAINT fk_history_custorder FOREIGN KEY (cust_order_id) 
+                REFERENCES Customer_Order(cust_order_id) ON DELETE CASCADE,
+            CONSTRAINT fk_history_sellerorder FOREIGN KEY (seller_order_id) 
+                REFERENCES Seller_Order(seller_order_id) ON DELETE CASCADE,
+            CONSTRAINT fk_history_shipment FOREIGN KEY (shipment_id) 
+                REFERENCES Shipment(shipment_id) ON DELETE CASCADE
+        ) ENGINE=InnoDB;
+
+        -- ============================================================
+        -- INDEXES FOR PERFORMANCE
+        -- ============================================================
+
+        -- Customer lookups
+        CREATE INDEX idx_customer_mail ON Customer(customer_mail);
+
+        -- Seller lookups
+        CREATE INDEX idx_seller_mail ON Seller(seller_mail);
+
+        -- Product search
+        CREATE INDEX idx_product_name ON Product(product_name);
+        CREATE INDEX idx_product_brand ON Product(brand_name);
+
+        -- Listing lookups
+        CREATE INDEX idx_listing_seller ON Listing(seller_id);
+        CREATE INDEX idx_listing_variant ON Listing(product_variant_id);
+        CREATE INDEX idx_listing_active ON Listing(is_active);
+
+        -- Order lookups
+        CREATE INDEX idx_custorder_customer ON Customer_Order(customer_id);
+        CREATE INDEX idx_custorder_date ON Customer_Order(ord_date);
+        CREATE INDEX idx_custorder_status ON Customer_Order(status);
+
+        -- Seller Order lookups
+        CREATE INDEX idx_sellerorder_seller ON Seller_Order(seller_id);
+        CREATE INDEX idx_sellerorder_status ON Seller_Order(status);
+
+        -- Order Item lookups
+        CREATE INDEX idx_orderitem_listing ON Order_Item(listing_id);
+
+        -- Status History lookups
+        CREATE INDEX idx_history_custorder ON Order_Status_History(cust_order_id);
+        CREATE INDEX idx_history_sellerorder ON Order_Status_History(seller_order_id);
+        CREATE INDEX idx_history_shipment ON Order_Status_History(shipment_id);
+
+        -- Reservation expiry index (critical for sub-day expiration queries)
+        CREATE INDEX idx_reservation_expires ON Stock_Reservation(expires_at, status);
