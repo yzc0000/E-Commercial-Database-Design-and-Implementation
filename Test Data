@@ -1,0 +1,305 @@
+-- ============================================================
+-- E-COMMERCE TEST DATA
+-- Sample data to test all tables, triggers, and procedures
+-- Aligned with actual schema column names
+-- ============================================================
+
+USE yazicia;
+
+-- ============================================================
+-- 1. CORE ENTITIES: Categories, Products, Sellers, Customers
+-- ============================================================
+
+-- Categories (only has category_id, category_name)
+INSERT INTO Category (category_name) VALUES
+('Electronics'),
+('Clothing'),
+('Home & Garden'),
+('Smartphones'),
+('Laptops'),
+('Men''s Clothing'),
+('Women''s Clothing');
+
+-- Products (product_id, product_name, description, brand_name, created_at)
+INSERT INTO Product (product_name, description, brand_name, created_at) VALUES
+('iPhone 15 Pro', 'Apple flagship smartphone with A17 Pro chip', 'Apple', NOW()),
+('Samsung Galaxy S24', 'Samsung flagship with AI features', 'Samsung', NOW()),
+('MacBook Pro 14"', 'Apple laptop with M3 Pro chip', 'Apple', NOW()),
+('Classic T-Shirt', 'Premium cotton t-shirt', 'BasicWear', NOW()),
+('Running Shoes', 'Lightweight running shoes', 'SportMax', NOW());
+
+-- Product-Category associations
+INSERT INTO Product_Category (product_id, category_id) VALUES
+(1, 1), (1, 4),  -- iPhone in Electronics and Smartphones
+(2, 1), (2, 4),  -- Samsung in Electronics and Smartphones
+(3, 1), (3, 5),  -- MacBook in Electronics and Laptops
+(4, 2), (4, 6),  -- T-Shirt in Clothing and Men's
+(5, 2);          -- Shoes in Clothing
+
+-- Product Variants (product_variant_id, product_id, barcode, stock_code, color, size, gender)
+INSERT INTO Product_Variant (product_id, barcode, stock_code, color, size, gender) VALUES
+(1, '8901234567890', 'IPH15P-256-BLK', 'Black', NULL, 'Unisex'),
+(1, '8901234567891', 'IPH15P-256-WHT', 'White', NULL, 'Unisex'),
+(1, '8901234567892', 'IPH15P-512-BLK', 'Black', NULL, 'Unisex'),
+(2, '8901234567893', 'SGS24-256-BLU', 'Blue', NULL, 'Unisex'),
+(2, '8901234567894', 'SGS24-512-BLK', 'Black', NULL, 'Unisex'),
+(3, '8901234567895', 'MBP14-M3P-512', 'Space Gray', NULL, 'Unisex'),
+(4, '8901234567896', 'TSH-BLK-M', 'Black', 'M', 'Men'),
+(4, '8901234567897', 'TSH-BLK-L', 'Black', 'L', 'Men'),
+(4, '8901234567898', 'TSH-WHT-M', 'White', 'M', 'Men'),
+(5, '8901234567899', 'RUN-BLK-42', 'Black', '42', 'Unisex'),
+(5, '8901234567800', 'RUN-BLK-43', 'Black', '43', 'Unisex');
+
+-- Product Media
+INSERT INTO Product_Media (product_variant_id, media_url, media_type, sort_order) VALUES
+(1, '/images/iphone15pro-black-1.jpg', 'image', 1),
+(1, '/images/iphone15pro-black-2.jpg', 'image', 2),
+(2, '/images/iphone15pro-white-1.jpg', 'image', 1),
+(4, '/images/galaxy-s24-blue-1.jpg', 'image', 1),
+(6, '/images/macbook-pro-14-1.jpg', 'image', 1),
+(7, '/images/tshirt-black-m.jpg', 'image', 1);
+
+-- ============================================================
+-- 2. SELLERS AND LISTINGS
+-- ============================================================
+
+-- Sellers (seller_id, seller_mail, seller_name, phone, status, created_at)
+INSERT INTO Seller (seller_mail, seller_name, phone, status, created_at) VALUES
+('sales@techworld.com', 'TechWorld Store', '+90-212-555-0101', 'Active', NOW()),
+('contact@fashionhub.com', 'Fashion Hub', '+90-312-555-0202', 'Active', NOW()),
+('info@megaelectronics.com', 'MegaElectronics', '+90-232-555-0303', 'Active', NOW());
+
+-- Listings (listing_id, product_variant_id, seller_id, price, currency, vat_rate, is_active, stock_on_hand, reserved, rebound, created_at)
+INSERT INTO Listing (product_variant_id, seller_id, price, currency, vat_rate, is_active, stock_on_hand, reserved, rebound, created_at) VALUES
+-- TechWorld Store listings
+(1, 1, 54999.00, 'TRY', 20.00, 1, 50, 0, 0, NOW()),  -- iPhone 15 Pro Black 256GB
+(2, 1, 54999.00, 'TRY', 20.00, 1, 30, 0, 0, NOW()),  -- iPhone 15 Pro White 256GB
+(3, 1, 64999.00, 'TRY', 20.00, 1, 20, 0, 0, NOW()),  -- iPhone 15 Pro Black 512GB
+(4, 1, 44999.00, 'TRY', 20.00, 1, 40, 0, 0, NOW()),  -- Samsung S24 Blue
+(6, 1, 89999.00, 'TRY', 20.00, 1, 15, 0, 0, NOW()),  -- MacBook Pro
+
+-- MegaElectronics listings (competing prices)
+(1, 3, 53999.00, 'TRY', 20.00, 1, 25, 0, 0, NOW()),  -- iPhone 15 Pro Black 256GB (cheaper!)
+(4, 3, 43999.00, 'TRY', 20.00, 1, 35, 0, 0, NOW()),  -- Samsung S24 Blue (cheaper!)
+(5, 3, 52999.00, 'TRY', 20.00, 1, 20, 0, 0, NOW()),  -- Samsung S24 Black 512GB
+
+-- Fashion Hub listings
+(7, 2, 299.00, 'TRY', 20.00, 1, 100, 0, 0, NOW()),   -- T-Shirt Black M
+(8, 2, 299.00, 'TRY', 20.00, 1, 80, 0, 0, NOW()),    -- T-Shirt Black L
+(9, 2, 299.00, 'TRY', 20.00, 1, 60, 0, 0, NOW()),    -- T-Shirt White M
+(10, 2, 1499.00, 'TRY', 20.00, 1, 45, 0, 0, NOW()),  -- Running Shoes 42
+(11, 2, 1499.00, 'TRY', 20.00, 1, 40, 0, 0, NOW());  -- Running Shoes 43
+
+-- ============================================================
+-- 3. CUSTOMERS AND ADDRESSES
+-- ============================================================
+
+-- Customers (customer_id, customer_mail, customer_firstname, customer_lastname, gender, birth_date, created_at)
+INSERT INTO Customer (customer_mail, customer_firstname, customer_lastname, gender, birth_date, created_at) VALUES
+('ahmet.yilmaz@email.com', 'Ahmet', 'Yilmaz', 'Male', '1990-05-15', NOW()),
+('zeynep.kaya@email.com', 'Zeynep', 'Kaya', 'Female', '1988-08-22', NOW()),
+('mehmet.demir@email.com', 'Mehmet', 'Demir', 'Male', '1995-03-10', NOW()),
+('elif.ozturk@email.com', 'Elif', 'Ozturk', 'Female', '1992-11-30', NOW());
+
+-- Addresses (address_id, customer_id, address_type, address_line1, address_line2, country, city, zip_code)
+INSERT INTO Address (customer_id, address_type, address_line1, address_line2, country, city, zip_code) VALUES
+(1, 'shipping', 'Bagdat Caddesi No:123', 'Daire 5', 'Turkey', 'Istanbul', '34710'),
+(1, 'billing', 'Bagdat Caddesi No:123', 'Daire 5', 'Turkey', 'Istanbul', '34710'),
+(2, 'shipping', 'Ataturk Bulvari No:456', NULL, 'Turkey', 'Ankara', '06690'),
+(2, 'billing', 'Ataturk Bulvari No:456', NULL, 'Turkey', 'Ankara', '06690'),
+(3, 'shipping', 'Alsancak Mahallesi No:789', 'Kat 3', 'Turkey', 'Izmir', '35220'),
+(4, 'shipping', 'Nisantasi Mahallesi No:101', NULL, 'Turkey', 'Istanbul', '34360');
+
+-- ============================================================
+-- 4. BASKETS (Shopping Carts)
+-- ============================================================
+
+-- Active baskets for customers
+INSERT INTO Basket (customer_id, is_active, created_at, last_updated_at) VALUES
+(1, 1, NOW(), NOW()),
+(2, 1, NOW(), NOW()),
+(3, 1, NOW(), NOW());
+
+-- Basket items (basket_item_id, basket_id, listing_id, quantity, unit_price_at_sale, vat_rate_at_sale, discount_rate_at_sale, created_at)
+INSERT INTO Basket_Item (basket_id, listing_id, quantity, unit_price_at_sale, vat_rate_at_sale, discount_rate_at_sale, created_at) VALUES
+-- Customer 1's basket: iPhone + T-shirt
+(1, 6, 1, 53999.00, 20.00, 0, NOW()),   -- iPhone from MegaElectronics (cheaper)
+(1, 9, 2, 299.00, 20.00, 0, NOW()),     -- 2x T-shirts
+
+-- Customer 2's basket: MacBook
+(2, 5, 1, 89999.00, 20.00, 0, NOW()),   -- MacBook Pro
+
+-- Customer 3's basket: Samsung + Shoes
+(3, 7, 1, 43999.00, 20.00, 0, NOW()),   -- Samsung S24
+(3, 12, 1, 1499.00, 20.00, 0, NOW());   -- Running Shoes
+
+-- ============================================================
+-- 5. COMPLETED ORDERS (for testing triggers and history)
+-- ============================================================
+
+-- Customer Order 1: Ahmet's completed order
+-- (cust_order_id, customer_id, ord_number, ord_date, status, shipping_address_line, shipping_country, shipping_city, billing_address_line, billing_country, billing_city)
+INSERT INTO Customer_Order (
+    customer_id, ord_number, ord_date, status, 
+    shipping_address_line, shipping_country, shipping_city,
+    billing_address_line, billing_country, billing_city
+) VALUES (
+    1, 'ORD-20241201-0001', '2024-12-01 10:00:00', 'Completed',
+    'Bagdat Caddesi No:123', 'Turkey', 'Istanbul',
+    'Bagdat Caddesi No:123', 'Turkey', 'Istanbul'
+);
+
+-- Seller Order for Ahmet's order (from TechWorld)
+INSERT INTO Seller_Order (seller_id, cust_order_id, status, item_subtotal, shipping_total, created_at) VALUES
+(1, 1, 'Completed', 54999.00, 0.00, '2024-12-01 10:00:00');
+
+-- Order Items (cust_order_id removed - derivable via Seller_Order)
+INSERT INTO Order_Item (listing_id, seller_order_id, list_price_at_sale, unit_price_at_sale, quantity, discount_amount, commission_rate, tax_rate) VALUES
+(1, 1, 54999.00, 54999.00, 1, 0.00, 8.50, 20.00);
+
+-- Payment for Order 1
+INSERT INTO Payment (cust_order_id, amount, currency, method, status, captured_at, created_at) VALUES
+(1, 54999.00, 'TRY', 'Credit Card', 'Completed', '2024-12-01 10:05:00', '2024-12-01 10:00:00');
+
+-- Payment Allocation
+INSERT INTO Payment_Allocation (payment_id, seller_order_id, amount, created_at) VALUES
+(1, 1, 54999.00, '2024-12-01 10:05:00');
+
+-- Shipment (shipment_id, seller_order_id, carrier, tracking_number, shipped_at, delivered_at, status, delivery_no, shipping_address_line, shipping_city, shipping_country, shipping_postal_code)
+INSERT INTO Shipment (seller_order_id, carrier, tracking_number, shipped_at, delivered_at, status, delivery_no, shipping_address_line, shipping_city, shipping_country, shipping_postal_code) VALUES
+(1, 'Yurtici Kargo', 'YK123456789', '2024-12-02 09:00:00', '2024-12-03 14:00:00', 'Delivered', 'DEL-001', 'Bagdat Caddesi No:123', 'Istanbul', 'Turkey', '34710');
+
+-- Shipment Items (shipment_item_id, shipment_id, order_item_id, shipped_quantity, created_at)
+INSERT INTO Shipment_Item (shipment_id, order_item_id, shipped_quantity, created_at) VALUES
+(1, 1, 1, '2024-12-02 09:00:00');
+
+-- Invoice (invoice_id, seller_order_id, invoice_number, invoice_date, status, address_line, billing_country, billing_city, billing_postalcode, created_at)
+INSERT INTO Invoice (seller_order_id, invoice_number, invoice_date, status, address_line, billing_country, billing_city, billing_postalcode, created_at) VALUES
+(1, 'INV-2024-0001', '2024-12-01', 'Issued', 'Bagdat Caddesi No:123', 'Turkey', 'Istanbul', '34710', '2024-12-01 10:10:00');
+
+-- ============================================================
+-- 6. MULTI-SELLER ORDER (Customer 2 - Zeynep)
+-- ============================================================
+
+-- Customer Order 2: Zeynep's order with items from multiple sellers
+INSERT INTO Customer_Order (
+    customer_id, ord_number, ord_date, status,
+    shipping_address_line, shipping_country, shipping_city,
+    billing_address_line, billing_country, billing_city
+) VALUES (
+    2, 'ORD-20241205-0002', '2024-12-05 15:00:00', 'Partially Shipped',
+    'Ataturk Bulvari No:456', 'Turkey', 'Ankara',
+    'Ataturk Bulvari No:456', 'Turkey', 'Ankara'
+);
+
+-- Seller Order from TechWorld (MacBook)
+INSERT INTO Seller_Order (seller_id, cust_order_id, status, item_subtotal, shipping_total, created_at) VALUES
+(1, 2, 'Shipped', 89999.00, 0.00, '2024-12-05 15:00:00');
+
+-- Seller Order from Fashion Hub (T-shirts)
+INSERT INTO Seller_Order (seller_id, cust_order_id, status, item_subtotal, shipping_total, created_at) VALUES
+(2, 2, 'Processing', 897.00, 29.00, '2024-12-05 15:00:00');
+
+-- Order Items for Zeynep (cust_order_id removed)
+INSERT INTO Order_Item (listing_id, seller_order_id, list_price_at_sale, unit_price_at_sale, quantity, discount_amount, commission_rate, tax_rate) VALUES
+(5, 2, 89999.00, 89999.00, 1, 0.00, 8.50, 20.00),   -- MacBook
+(9, 3, 299.00, 299.00, 3, 0.00, 12.00, 20.00);      -- 3x T-shirts
+
+-- Payment for Order 2
+INSERT INTO Payment (cust_order_id, amount, currency, method, status, captured_at, created_at) VALUES
+(2, 90925.00, 'TRY', 'Credit Card', 'Completed', '2024-12-05 15:05:00', '2024-12-05 15:00:00');
+
+-- Payment Allocations
+INSERT INTO Payment_Allocation (payment_id, seller_order_id, amount, created_at) VALUES
+(2, 2, 89999.00, '2024-12-05 15:05:00'),
+(2, 3, 926.00, '2024-12-05 15:05:00');
+
+-- Shipment for MacBook (already shipped)
+INSERT INTO Shipment (seller_order_id, carrier, tracking_number, shipped_at, status, delivery_no, shipping_address_line, shipping_city, shipping_country, shipping_postal_code) VALUES
+(2, 'Aras Kargo', 'AR987654321', '2024-12-06 11:00:00', 'Shipped', 'DEL-002', 'Ataturk Bulvari No:456', 'Ankara', 'Turkey', '06690');
+
+INSERT INTO Shipment_Item (shipment_id, order_item_id, shipped_quantity, created_at) VALUES
+(2, 2, 1, '2024-12-06 11:00:00');
+
+-- ============================================================
+-- 7. PENDING ORDER (Customer 3 - Mehmet)
+-- ============================================================
+
+INSERT INTO Customer_Order (
+    customer_id, ord_number, ord_date, status,
+    shipping_address_line, shipping_country, shipping_city,
+    billing_address_line, billing_country, billing_city
+) VALUES (
+    3, 'ORD-20241210-0003', NOW(), 'Created',
+    'Alsancak Mahallesi No:789', 'Turkey', 'Izmir',
+    'Alsancak Mahallesi No:789', 'Turkey', 'Izmir'
+);
+
+-- Seller Order from MegaElectronics
+INSERT INTO Seller_Order (seller_id, cust_order_id, status, item_subtotal, shipping_total, created_at) VALUES
+(3, 3, 'Created', 43999.00, 0.00, NOW());
+
+-- Order Item (cust_order_id removed)
+INSERT INTO Order_Item (listing_id, seller_order_id, list_price_at_sale, unit_price_at_sale, quantity, discount_amount, commission_rate, tax_rate) VALUES
+(7, 4, 43999.00, 43999.00, 1, 0.00, 7.50, 20.00);
+
+-- ============================================================
+-- 8. REVIEWS (only for delivered items)
+-- ============================================================
+
+-- Ahmet can review the iPhone he received
+-- (review_id, product_variant_id, customer_id, rating, review_text, reviewed_at)
+INSERT INTO Review (product_variant_id, customer_id, rating, review_text, reviewed_at) VALUES
+(1, 1, 5, 'The iPhone 15 Pro is amazing. Camera quality is outstanding and the performance is top-notch.', '2024-12-04 10:00:00');
+
+-- ============================================================
+-- 9. STOCK RESERVATIONS
+-- ============================================================
+
+-- Reservations for orders (no basket_item_id - order-level only)
+INSERT INTO Stock_Reservation (listing_id, order_item_id, quantity, expires_at, created_at, status) VALUES
+(1, 1, 1, DATE_ADD(NOW(), INTERVAL 30 MINUTE), NOW(), 'Confirmed'),
+(5, 2, 1, DATE_ADD(NOW(), INTERVAL 30 MINUTE), NOW(), 'Confirmed'),
+(9, 3, 3, DATE_ADD(NOW(), INTERVAL 30 MINUTE), NOW(), 'Confirmed');
+
+-- ============================================================
+-- 10. STOCK MOVEMENTS (for audit trail)
+-- ============================================================
+
+INSERT INTO Stock_Movement (listing_id, order_item_id, return_item_id, movement_type, quantity, created_at) VALUES
+-- Initial restock movements
+(1, NULL, NULL, 'RESTOCK', 50, '2024-11-01 09:00:00'),
+(2, NULL, NULL, 'RESTOCK', 30, '2024-11-01 09:00:00'),
+(5, NULL, NULL, 'RESTOCK', 15, '2024-11-01 09:00:00'),
+-- Shipment outbound for Order 1
+(1, 1, NULL, 'SHIPMENT_OUTBOUND', 1, '2024-12-02 09:00:00');
+
+-- ============================================================
+-- 11. RETURN EXAMPLE (Demonstrates proper return workflow)
+-- ============================================================
+
+-- First create a refund (pending - will be processed after return is received)
+INSERT INTO Refund (payment_id, amount, reason, status, created_at) VALUES
+(1, 54999.00, 'Customer return - exchange for 512GB version', 'Pending', NOW());
+
+-- Order Return starts in 'Requested' status
+-- NOTE: Following the workflow, Return_Item is only inserted when items are 
+--       physically received at warehouse (when status becomes 'Received')
+INSERT INTO Order_Return (seller_order_id, refund_id, status, created_at) VALUES
+(1, 1, 'Requested', NOW());
+
+-- Return_Item is NOT inserted yet because return is still in 'Requested' status
+-- When warehouse receives items, they would INSERT Return_Item, which triggers:
+--   1. trg_returnitem_increase_rebound - increases stock_on_hand
+--   2. trg_returnitem_stock_movement - logs RETURN_INBOUND movement
+-- For testing purposes, we'll add Return_Item for a 'Received' return:
+
+-- Update return to 'Approved' first (following lifecycle)
+SET @DISABLE_RETURN_TRIGGER = TRUE;
+UPDATE Order_Return SET status = 'Received' WHERE return_id = 1;
+SET @DISABLE_RETURN_TRIGGER = FALSE;
+
+-- Now insert Return_Item (represents items physically received)
+INSERT INTO Return_Item (return_id, order_item_id, quantity, reason, created_at) VALUES
+(1, 1, 1, 'Exchange for larger storage', NOW());
+
